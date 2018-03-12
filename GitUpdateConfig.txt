@@ -1,0 +1,11 @@
+Owner: Stridemann
+Name: PoeHUD_EliteHealthbarsPlugin
+Repository
+
+Ignore:
+src
+.gitignore
+.gitattributes
+LICENSE
+README.md
+Screenshot.png
