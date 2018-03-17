@@ -1,5 +1,5 @@
 Owner: Stridemann
-Name: PoeHUD_EliteHealthbarsPlugin
+Name: PoeHUD_BestiaryCraftPlugin
 Repository
 
 Ignore:
