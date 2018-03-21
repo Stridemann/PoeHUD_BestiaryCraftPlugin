@@ -16,7 +16,7 @@ namespace BestiaryBeastCraft
     {
         public Core() { PluginName = "BestiaryBeastCraft"; }
 
-        private Dictionary<string, CraftMonster> MonsterMetadata = new Dictionary<string, CraftMonster>();
+        private Dictionary<string, CraftMonster> SpecialMonsterMetadata = new Dictionary<string, CraftMonster>();
         private Dictionary<string, CraftMonster>  MonsterMods = new Dictionary<string, CraftMonster>();
         private List<MonsterDisplayCfg> TrackingMonsters = new List<MonsterDisplayCfg>();
         private Dictionary<string, BestiaryCapturableMonster> MonstersUniversal = new Dictionary<string, BestiaryCapturableMonster>();
@@ -48,10 +48,10 @@ namespace BestiaryBeastCraft
 
                     if (component.BestiaryCapturableMonster != null)
                     {
-                        if (!MonsterMetadata.TryGetValue(component.BestiaryCapturableMonster.MonsterVariety.VarietyId, out CraftMonster recipeCfg))
+                        if (!SpecialMonsterMetadata.TryGetValue(component.BestiaryCapturableMonster.MonsterVariety.VarietyId, out CraftMonster recipeCfg))
                         {
                             recipeCfg = new CraftMonster();
-                            MonsterMetadata.Add(component.BestiaryCapturableMonster.MonsterVariety.VarietyId, recipeCfg);
+                            SpecialMonsterMetadata.Add(component.BestiaryCapturableMonster.MonsterVariety.VarietyId, recipeCfg);
                         }
                         recipeCfg.Recipes.Add(recipe);
                     }
@@ -108,6 +108,7 @@ namespace BestiaryBeastCraft
 
             CalcAmount();
 
+            bool foundNotShitty = false;
             var captGenusAmount = CaptureGenusAmount[translatedMonster.BestiaryGenus.Name];
             var newDisplayCfg = new MonsterDisplayCfg()
             {
@@ -118,11 +119,12 @@ namespace BestiaryBeastCraft
                 Rarity = rareComps.Rarity,
                 DisplayName = translatedMonster.MonsterName
             };
-            TrackingMonsters.Add(newDisplayCfg);
+        
 
-            if (MonsterMetadata.TryGetValue(path, out CraftMonster monsterNameCfg))
+            if (SpecialMonsterMetadata.TryGetValue(path, out CraftMonster monsterNameCfg))
             {
                 newDisplayCfg.Recipes.AddRange(monsterNameCfg.Recipes);
+                foundNotShitty = true;
             }
 
             var modsFound = new List<string>();
@@ -132,6 +134,7 @@ namespace BestiaryBeastCraft
                 {
                     modsFound.Add(monsterModCfg.Mod.UserFriendlyName);
                     newDisplayCfg.Recipes.AddRange(monsterModCfg.Recipes);
+                    foundNotShitty = true;
                 }
             }
 
@@ -139,6 +142,9 @@ namespace BestiaryBeastCraft
             if(newDisplayCfg.ModsCount > 0)
                 newDisplayCfg.DisplayMods = $"Mods: {string.Join(", ", modsFound)}";
             newDisplayCfg.CaptureThreshould = CalcCatchThreshould(newDisplayCfg);
+
+            if(foundNotShitty || !Settings.HideShitty.Value)
+                TrackingMonsters.Add(newDisplayCfg);
         }
 
         private float CalcCatchThreshould(MonsterDisplayCfg mobCfg)

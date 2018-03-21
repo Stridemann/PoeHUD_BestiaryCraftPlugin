@@ -45,6 +45,9 @@ namespace BestiaryBeastCraft
         [Menu("Show HP")]
         public ToggleNode ShowHP { get; set; } = true;
 
+        [Menu("Hide Shitty Mobs (secondary in recipes)")]
+        public ToggleNode HideShitty { get; set; } = false;
+
         [Menu("Pos X")]
         public RangeNode<int> PosX { get; set; } = new RangeNode<int>(500, 0, 2000);
 
