@@ -88,7 +88,7 @@ namespace BestiaryBeastCraft
         [Menu("Upper (min) Threshold", "To kill (false) or to Capture (true) threshold. Set false if you have enough DPS to kill it fast", 101, 100)]
         public ToggleNode UpperThreshold { get; set; }
 
-        [Menu("DPS (K)", 110, 100)]
+        [Menu("My DPS. (K) (After monster resists)", 110, 100)]
         public RangeNode<int> DPS { get; set; }
 
         [Menu("Has Culling Strike", 120, 100)]

@@ -29,6 +29,11 @@ namespace BestiaryBeastCraft
             GameController.Area.OnAreaChange += Area_OnAreaChange;
         }
 
+        public override void OnPluginDestroyForHotReload()
+        {
+            GameController.Area.OnAreaChange -= Area_OnAreaChange;
+        }
+
         private void LoadRecipes()
         {
             foreach (var recipe in GameController.Files.BestiaryRecipes.EntriesList)
@@ -208,7 +213,7 @@ namespace BestiaryBeastCraft
         
             var drawPosY = Settings.PosY.Value - Settings.Height.Value;
 
-            foreach (var monster in TrackingMonsters)
+            foreach (var monster in TrackingMonsters.ToList())
             {
                 var life = monster.LifeComp;
                 int totalHp = life.MaxES + life.MaxHP;
@@ -378,7 +383,7 @@ namespace BestiaryBeastCraft
             if (num >= 100000)
                 return (num / 1000).ToString("#,0K");
 
-            if (num >= 10000)
+            if (num >= 1000)
                 return (num / 1000).ToString("0.#") + "K";
 
             return num.ToString("#,0");
