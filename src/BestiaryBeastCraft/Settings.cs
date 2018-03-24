@@ -108,7 +108,10 @@ namespace BestiaryBeastCraft
         public RangeNode<int> IconSize { get; set; } = new RangeNode<int>(70, 10, 200);
 
 
-        [Menu("Draw Icon")]
+        [Menu("Hide Captured Immediately")]
         public ToggleNode HideCapturedImmediately { get; set; } = true;
+
+        [Menu("Show In Managerie")]
+        public ToggleNode ShowInManagerie { get; set; } = true;
     }
 }

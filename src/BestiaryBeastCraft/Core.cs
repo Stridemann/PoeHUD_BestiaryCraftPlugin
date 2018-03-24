@@ -70,9 +70,17 @@ namespace BestiaryBeastCraft
         }
 
 
-
+        private bool IsManagerie;
         private void Area_OnAreaChange(PoeHUD.Controllers.AreaController obj)
         {
+            string areaId = GameController.Game.IngameState.Data.CurrentWorldArea.Id;
+            IsManagerie = 
+                areaId == "Menagerie_Hub" || 
+                areaId == "Menagerie_WaterCreatures" || 
+                areaId == "Menagerie_InsectsArachnids" || 
+                areaId == "Menagerie_BirdsReptiles" ||
+                areaId == "Menagerie_Mammals";
+
             TrackingMonsters.Clear();
         }
 
@@ -96,6 +104,7 @@ namespace BestiaryBeastCraft
 
         public override void EntityAdded(EntityWrapper entityWrapper)
         {
+            if (IsManagerie && !Settings.ShowInManagerie.Value) return;
             if (!entityWrapper.IsHostile) return;
             if (!entityWrapper.HasComponent<Monster>()) return;
             var rareComps = entityWrapper.GetComponent<ObjectMagicProperties>();
@@ -112,7 +121,9 @@ namespace BestiaryBeastCraft
 
             var stats = entityWrapper.GetComponent<Stats>();
             bool captured = stats.StatDictionary.ContainsKey(GameStat.IsHiddenMonster) && stats.StatDictionary[GameStat.IsHiddenMonster] == 1;
-            if (captured) return;
+            if (captured && Settings.HideCapturedImmediately.Value) return;
+
+
 
             CalcAmount();
 
@@ -125,7 +136,8 @@ namespace BestiaryBeastCraft
                 Entity = entityWrapper,
                 LifeComp = entityWrapper.GetComponent<Life>(),
                 Rarity = rareComps.Rarity,
-                DisplayName = translatedMonster.MonsterName
+                DisplayName = translatedMonster.MonsterName,
+                IsCaptured = captured
             };
         
 
@@ -200,6 +212,7 @@ namespace BestiaryBeastCraft
             public string DisplayMods;
             public int CapturedGenusAmount;
             public MonsterRarity Rarity;
+            public bool IsCaptured;
 
             public bool IsRed => ModsCount > 1;
             public bool IsYellow => ModsCount == 1;
@@ -207,6 +220,7 @@ namespace BestiaryBeastCraft
 
         public override void Render()
         {
+            if (IsManagerie && !Settings.ShowInManagerie.Value) return;
             if (!GameController.InGame) return;
             if (GameController.Game.IngameState.IngameUi.AtlasPanel.IsVisible) return;
             if (GameController.Game.IngameState.IngameUi.TreePanel.IsVisible) return;
@@ -228,6 +242,11 @@ namespace BestiaryBeastCraft
                 bool captured = stats.StatDictionary.ContainsKey(GameStat.IsHiddenMonster) && stats.StatDictionary[GameStat.IsHiddenMonster] == 1;
                 bool netUsed = stats.StatDictionary.ContainsKey(GameStat.CannotDie) && stats.StatDictionary[GameStat.CannotDie] == 1;
 
+                if(!monster.IsCaptured && captured)
+                {
+                    monster.IsCaptured = true;
+                    CalcAmount();
+                }
                 if (captured && Settings.HideCapturedImmediately.Value)
                     TrackingMonsters.Remove(monster);
 
