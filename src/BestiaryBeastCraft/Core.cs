@@ -98,7 +98,6 @@ namespace BestiaryBeastCraft
         {
             if (!entityWrapper.IsHostile) return;
             if (!entityWrapper.HasComponent<Monster>()) return;
-            if (!entityWrapper.IsAlive) return;
             var rareComps = entityWrapper.GetComponent<ObjectMagicProperties>();
             if (rareComps == null) return;
             if (rareComps.Rarity != MonsterRarity.Rare && rareComps.Rarity != MonsterRarity.Unique) return;
@@ -110,6 +109,10 @@ namespace BestiaryBeastCraft
 
             MonstersUniversal.TryGetValue(path, out BestiaryCapturableMonster translatedMonster);
             if (translatedMonster == null) return;
+
+            var stats = entityWrapper.GetComponent<Stats>();
+            bool captured = stats.StatDictionary.ContainsKey(GameStat.IsHiddenMonster) && stats.StatDictionary[GameStat.IsHiddenMonster] == 1;
+            if (captured) return;
 
             CalcAmount();
 
@@ -221,7 +224,14 @@ namespace BestiaryBeastCraft
                 float perc = (float)curHp / totalHp;
 
 
-                if (Settings.DrawIcon.Value)
+                var stats = monster.Entity.GetComponent<Stats>();
+                bool captured = stats.StatDictionary.ContainsKey(GameStat.IsHiddenMonster) && stats.StatDictionary[GameStat.IsHiddenMonster] == 1;
+                bool netUsed = stats.StatDictionary.ContainsKey(GameStat.CannotDie) && stats.StatDictionary[GameStat.CannotDie] == 1;
+
+                if (captured && Settings.HideCapturedImmediately.Value)
+                    TrackingMonsters.Remove(monster);
+
+                if (Settings.DrawIcon.Value && !captured)
                 {
                     var iconDrawPos = GameController.Game.IngameState.Camera.WorldToScreen(monster.Entity.Pos, monster.Entity);
 
@@ -233,10 +243,17 @@ namespace BestiaryBeastCraft
                     else if (monster.Rarity == MonsterRarity.Unique)
                         icon = "images/bestiary-uniq.png";
 
-                    Graphics.DrawPluginImage(Path.Combine(PluginDirectory, icon), new RectangleF(
+
+                    var iconDrawRect = new RectangleF(
                         iconDrawPos.X - Settings.IconSize.Value / 2,
                         iconDrawPos.Y - Settings.IconSize.Value / 2,
-                        Settings.IconSize.Value, Settings.IconSize.Value));
+                        Settings.IconSize.Value, Settings.IconSize.Value);
+
+
+                    Graphics.DrawPluginImage(Path.Combine(PluginDirectory, icon), iconDrawRect);
+
+                    if (netUsed)
+                        Graphics.DrawPluginImage(Path.Combine(PluginDirectory, "images/net.png"), iconDrawRect);
                 }
 
                 Graphics.DrawText(perc.ToString("p0"), Settings.TextHeight.Value,
@@ -250,12 +267,24 @@ namespace BestiaryBeastCraft
                 if (Settings.ShowGenus)
                     displayLabel += $", ({monster.CaptMonster.BestiaryGenus.Name})";
 
-                DrawProgressBar(Settings.PosX.Value, drawPosY, GetColorByRarity(monster.Rarity), perc, monster);
+                var drawColor = Color.Gray;
+                drawColor.A = 128;
+
+                if(!captured)
+                    drawColor = GetColorByRarity(monster.Rarity);
+
+                if (netUsed)
+                    drawColor = Color.Lerp(drawColor, Color.Gray, 0.5f);
+
+                var mainRect = new RectangleF(Settings.PosX.Value, drawPosY, Settings.Width.Value, Settings.Height.Value);
+                DrawProgressBar(mainRect, drawColor, perc, monster);
+
+                if(netUsed)
+                    Graphics.DrawPluginImage(Path.Combine(PluginDirectory, "images/bar_net.png"), mainRect);
 
                 Graphics.DrawText(displayLabel, Settings.TextHeight.Value, 
                     new Vector2(Settings.PosX.Value + 5, drawPosY + Settings.Height.Value / 2), GetTextColorByRarity(monster.Rarity),
                     FontDrawFlags.VerticalCenter | FontDrawFlags.Left);
-
 
                 string additionalInfo = "";
 
@@ -305,9 +334,9 @@ namespace BestiaryBeastCraft
             }
         }
 
-        private void DrawProgressBar(int drawPosX, int drawPosY, Color barColor, float perc, MonsterDisplayCfg monsterCfg)
+        private void DrawProgressBar(RectangleF mainRect, Color barColor, float perc, MonsterDisplayCfg monsterCfg)
         {
-            var mainRect = new RectangleF(drawPosX, drawPosY, Settings.Width.Value, Settings.Height.Value);
+        
             Graphics.DrawBox(mainRect, Settings.BGColor.Value);
             var frameRect = mainRect;
             mainRect.Width *= perc;
