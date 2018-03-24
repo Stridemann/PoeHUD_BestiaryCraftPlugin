@@ -104,7 +104,6 @@ namespace BestiaryBeastCraft
 
         public override void EntityAdded(EntityWrapper entityWrapper)
         {
-            if (IsManagerie && !Settings.ShowInManagerie.Value) return;
             if (!entityWrapper.IsHostile) return;
             if (!entityWrapper.HasComponent<Monster>()) return;
             var rareComps = entityWrapper.GetComponent<ObjectMagicProperties>();

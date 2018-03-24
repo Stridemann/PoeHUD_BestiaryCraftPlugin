@@ -100,7 +100,6 @@ namespace BestiaryBeastCraft
         [Menu("Net Capture Time", "By default 3sec", 130, 100)]
         public RangeNode<int> CaptureTime { get; set; }
 
-
         [Menu("Draw Icon", 200)]
         public ToggleNode DrawIcon { get; set; } = true;
 
