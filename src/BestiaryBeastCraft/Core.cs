@@ -21,17 +21,37 @@ namespace BestiaryBeastCraft
         private List<MonsterDisplayCfg> TrackingMonsters = new List<MonsterDisplayCfg>();
         private Dictionary<string, BestiaryCapturableMonster> MonstersUniversal = new Dictionary<string, BestiaryCapturableMonster>();
         private Dictionary<string, int> CaptureGenusAmount = new Dictionary<string, int>();
-
+        private PoeTradeProcessor PoeTradeProcessor = new PoeTradeProcessor();
         public override void Initialise()
         {
             LoadRecipes();
             CalcAmount();
             GameController.Area.OnAreaChange += Area_OnAreaChange;
+
+            PoeHUD.Hud.Menu.MenuPlugin.KeyboardMouseEvents.MouseDownExt += KeyboardMouseEvents_MouseDownExt;
+            PoeHUD.Hud.Menu.MenuPlugin.KeyboardMouseEvents.MouseMoveExt += KeyboardMouseEvents_MouseMoveExt;
+
+            Settings.ClearPriceCache.OnPressed = delegate { PoeTradeProcessor.CachedPrices.Clear(); };
         }
 
         public override void OnPluginDestroyForHotReload()
         {
             GameController.Area.OnAreaChange -= Area_OnAreaChange;
+            PoeHUD.Hud.Menu.MenuPlugin.KeyboardMouseEvents.MouseDownExt -= KeyboardMouseEvents_MouseDownExt;
+            PoeHUD.Hud.Menu.MenuPlugin.KeyboardMouseEvents.MouseMoveExt -= KeyboardMouseEvents_MouseMoveExt;
+        }
+
+        private Vector2 MousePos;
+        private void KeyboardMouseEvents_MouseMoveExt(object sender, Gma.System.MouseKeyHook.MouseEventExtArgs e)
+        {
+            MousePos = GameController.Window.ScreenToClient(e.X, e.Y);
+        }
+        
+        private void KeyboardMouseEvents_MouseDownExt(object sender, Gma.System.MouseKeyHook.MouseEventExtArgs e)
+        {
+            if (PoeTradeOpenMonster == null) return;
+            e.Handled = true;
+            System.Diagnostics.Process.Start(PoeTradeOpenMonster.URL);
         }
 
         private void LoadRecipes()
@@ -108,12 +128,24 @@ namespace BestiaryBeastCraft
             if (!entityWrapper.HasComponent<Monster>()) return;
             var rareComps = entityWrapper.GetComponent<ObjectMagicProperties>();
             if (rareComps == null) return;
-            if (rareComps.Rarity != MonsterRarity.Rare && rareComps.Rarity != MonsterRarity.Unique) return;
 
             var path = entityWrapper.Path;
+            bool isAlbino = path.StartsWith("Metadata/Monsters/Rhoas/RhoaAlbino");
+
+            if (rareComps.Rarity != MonsterRarity.Rare && rareComps.Rarity != MonsterRarity.Unique && !isAlbino) return;
+
+            if (isAlbino)
+                LogMessage("Albino: " + path, 3);
+
+
             var sybstrIndc = path.IndexOf("@");
+            int lvl = -1;
             if (sybstrIndc != -1)
+            {
+                var lvlStr = path.Substring(sybstrIndc + 1);
+                int.TryParse(lvlStr, out lvl);
                 path = path.Substring(0, sybstrIndc);
+            }
 
             MonstersUniversal.TryGetValue(path, out BestiaryCapturableMonster translatedMonster);
             if (translatedMonster == null) return;
@@ -123,10 +155,8 @@ namespace BestiaryBeastCraft
             if (captured && Settings.HideCapturedImmediately.Value) return;
 
 
-
             CalcAmount();
-
-            bool foundNotShitty = false;
+            
             var captGenusAmount = CaptureGenusAmount[translatedMonster.BestiaryGenus.Name];
             var newDisplayCfg = new MonsterDisplayCfg()
             {
@@ -136,34 +166,51 @@ namespace BestiaryBeastCraft
                 LifeComp = entityWrapper.GetComponent<Life>(),
                 Rarity = rareComps.Rarity,
                 DisplayName = translatedMonster.MonsterName,
-                IsCaptured = captured
+                IsCaptured = captured,
+                Level = lvl
             };
-        
 
+            bool foundInName = false;
             if (SpecialMonsterMetadata.TryGetValue(path, out CraftMonster monsterNameCfg))
             {
                 newDisplayCfg.Recipes.AddRange(monsterNameCfg.Recipes);
-                foundNotShitty = true;
+                foundInName = true;
             }
 
-            var modsFound = new List<string>();
+            bool foundInMods = false;
+
             foreach (var mod in rareComps.Mods)
             {
                 if (MonsterMods.TryGetValue(mod, out CraftMonster monsterModCfg))
                 {
-                    modsFound.Add(monsterModCfg.Mod.UserFriendlyName);
+                    newDisplayCfg.Mods.Add(monsterModCfg.Mod.UserFriendlyName);
                     newDisplayCfg.Recipes.AddRange(monsterModCfg.Recipes);
-                    foundNotShitty = true;
+                    foundInMods = true;
                 }
             }
+            newDisplayCfg.IsShittyMob = !foundInName && !foundInMods;
 
-            newDisplayCfg.ModsCount = modsFound.Count;
+            newDisplayCfg.ModsCount = newDisplayCfg.Mods.Count;
             if(newDisplayCfg.ModsCount > 0)
-                newDisplayCfg.DisplayMods = $"Mods: {string.Join(", ", modsFound)}";
+                newDisplayCfg.DisplayMods = $"Mods: {string.Join(", ", newDisplayCfg.Mods)}";
             newDisplayCfg.CaptureThreshould = CalcCatchThreshould(newDisplayCfg);
 
-            if(foundNotShitty || !Settings.HideShitty.Value)
+            if (foundInName || foundInMods || !Settings.HideShitty.Value)
+            {
                 TrackingMonsters.Add(newDisplayCfg);
+
+                if(Settings.ShowPrice.Value)
+                {
+                    if (foundInMods)
+                    {
+                        PoeTradeProcessor.CheckBestiaryPrice(newDisplayCfg, true);
+                    }
+                    else if (foundInName)
+                    {
+                        PoeTradeProcessor.CheckBestiaryPrice(newDisplayCfg, false);
+                    }
+                }
+            }
         }
 
         private float CalcCatchThreshould(MonsterDisplayCfg mobCfg)
@@ -199,38 +246,50 @@ namespace BestiaryBeastCraft
 
         public override void EntityRemoved(EntityWrapper entityWrapper) => TrackingMonsters.RemoveAll(x => x.Entity == entityWrapper);
 
-        private class MonsterDisplayCfg
-        {
-            public EntityWrapper Entity;
-            public Life LifeComp;
-            public List<BestiaryRecipe> Recipes = new List<BestiaryRecipe>();
-            public BestiaryCapturableMonster CaptMonster;
-            public int ModsCount;
-            public float CaptureThreshould;
-            public string DisplayName;
-            public string DisplayMods;
-            public int CapturedGenusAmount;
-            public MonsterRarity Rarity;
-            public bool IsCaptured;
 
-            public bool IsRed => ModsCount > 1;
-            public bool IsYellow => ModsCount == 1;
-        }
-
+        private MonsterDisplayCfg PoeTradeOpenMonster;
         public override void Render()
         {
-            if (IsManagerie && !Settings.ShowInManagerie.Value) return;
+            PoeTradeOpenMonster = null;
+            if (IsManagerie && (!Settings.ShowInManagerie.Value && !Settings.ShowNamesInManagerie.Value)) return;
+
             if (!GameController.InGame) return;
             if (GameController.Game.IngameState.IngameUi.AtlasPanel.IsVisible) return;
             if (GameController.Game.IngameState.IngameUi.TreePanel.IsVisible) return;
             if (GameController.Area.CurrentArea.IsHideout) return;
             if (GameController.Area.CurrentArea.IsTown) return;
-            if (GameController.Game.IngameState.IngameUi.InventoryPanel.IsVisible) return;
+            if (GameController.Game.IngameState.IngameUi.InventoryPanel.IsVisible && !IsManagerie) return;
         
             var drawPosY = Settings.PosY.Value - Settings.Height.Value;
 
             foreach (var monster in TrackingMonsters.ToList())
             {
+                var monsterDrawColor = GetColorByRarity(monster);
+                if (IsManagerie)
+                {
+                    if (Settings.ShowNamesInManagerie.Value)
+                    {
+                        if (monster.IsShittyMob) continue;
+                        var textDrawPos = GameController.Game.IngameState.Camera.WorldToScreen(monster.Entity.Pos, monster.Entity);
+
+                        var displStr = $"{monster.DisplayName}, {monster.Level}lvl";
+
+                        if (!string.IsNullOrEmpty(monster.Price))
+                            displStr += $", {monster.Price}";
+
+                        var tSize = Graphics.DrawText(displStr, Settings.ManagerieTextSize.Value, textDrawPos, monsterDrawColor, FontDrawFlags.Center | FontDrawFlags.Bottom);
+                        tSize.Width += 6;
+
+
+                        var bgRect = new RectangleF(textDrawPos.X - tSize.Width / 2, textDrawPos.Y - tSize.Height, tSize.Width, tSize.Height);
+                        Graphics.DrawBox(bgRect, Color.Black);
+
+                        DrawPoeTradeButton(monster, bgRect);
+                    }
+
+                    if (!Settings.ShowInManagerie.Value)
+                        continue;
+                }
                 var life = monster.LifeComp;
                 int totalHp = life.MaxES + life.MaxHP;
                 int curHp = life.CurES + life.CurHP;
@@ -239,7 +298,7 @@ namespace BestiaryBeastCraft
 
                 var stats = monster.Entity.GetComponent<Stats>();
                 bool captured = stats.StatDictionary.ContainsKey(GameStat.IsHiddenMonster) && stats.StatDictionary[GameStat.IsHiddenMonster] == 1;
-                bool netUsed = stats.StatDictionary.ContainsKey(GameStat.CannotDie) && stats.StatDictionary[GameStat.CannotDie] == 1;
+                bool netUsed = !IsManagerie && stats.StatDictionary.ContainsKey(GameStat.CannotDie) && stats.StatDictionary[GameStat.CannotDie] == 1;
 
                 if(!monster.IsCaptured && captured)
                 {
@@ -268,7 +327,7 @@ namespace BestiaryBeastCraft
                         Settings.IconSize.Value, Settings.IconSize.Value);
 
 
-                    Graphics.DrawPluginImage(Path.Combine(PluginDirectory, icon), iconDrawRect);
+                    Graphics.DrawPluginImage(Path.Combine(PluginDirectory, icon), iconDrawRect, monsterDrawColor);
 
                     if (netUsed)
                         Graphics.DrawPluginImage(Path.Combine(PluginDirectory, "images/net.png"), iconDrawRect);
@@ -285,11 +344,14 @@ namespace BestiaryBeastCraft
                 if (Settings.ShowGenus)
                     displayLabel += $", ({monster.CaptMonster.BestiaryGenus.Name})";
 
+                if (Settings.ShowPrice)
+                    displayLabel += $", ({monster.Price})";
+
                 var drawColor = Color.Gray;
                 drawColor.A = 128;
 
                 if(!captured)
-                    drawColor = GetColorByRarity(monster.Rarity);
+                    drawColor = monsterDrawColor;
 
                 if (netUsed)
                     drawColor = Color.Lerp(drawColor, Color.Gray, 0.5f);
@@ -312,11 +374,22 @@ namespace BestiaryBeastCraft
                 if (Settings.ShowAmountCaptured)
                     additionalInfo += $"({monster.CapturedGenusAmount}/{monster.CaptMonster.BestiaryGenus.MaxInStorage})";
 
+  
+
                 if (!string.IsNullOrEmpty(additionalInfo))
                 {
                     Graphics.DrawText(additionalInfo, Settings.TextHeight.Value,
                     new Vector2(Settings.PosX.Value + Settings.Width.Value - 5, drawPosY + Settings.Height.Value / 2), GetTextColorByRarity(monster.Rarity),
                     FontDrawFlags.VerticalCenter | FontDrawFlags.Right);
+                }
+
+
+                var infDrawRect = new RectangleF(Settings.PosX.Value + Settings.Width.Value, drawPosY, Settings.Height.Value, Settings.Height.Value);
+
+                if (IsManagerie)
+                {
+                    if (DrawPoeTradeButton(monster, mainRect))
+                        infDrawRect.X += 35;
                 }
 
                 if (Settings.ShowRecipes)
@@ -333,7 +406,7 @@ namespace BestiaryBeastCraft
                     var recipeStr = string.Join(", ", recipesSorted.Select(x => $"{x.Key}: {x.Value}"));
 
                     Graphics.DrawText(recipeStr, Settings.TextHeight.Value,
-                    new Vector2(Settings.PosX.Value + Settings.Width.Value + 5, drawPosY + Settings.Height.Value / 2), Color.White, 
+                    new Vector2(infDrawRect.X, drawPosY + Settings.Height.Value / 2), Color.White, 
                     FontDrawFlags.VerticalCenter | FontDrawFlags.Left);
                 }
 
@@ -350,6 +423,25 @@ namespace BestiaryBeastCraft
                 drawPosY -= Settings.Height.Value;
                 drawPosY -= Settings.Spacing.Value;
             }
+        }
+
+        private bool DrawPoeTradeButton(MonsterDisplayCfg monster, RectangleF bgRect)
+        {
+            if (string.IsNullOrEmpty(monster.URL))
+                return false;
+
+            bgRect.X += bgRect.Width;
+            bgRect.Width = 30;
+            Graphics.DrawBox(bgRect, Color.Black);
+            Graphics.DrawText("P", Settings.ManagerieTextSize.Value, bgRect.Center, Color.Gray, FontDrawFlags.Center | FontDrawFlags.VerticalCenter);
+
+            if (bgRect.Contains(MousePos))
+            {
+                PoeTradeOpenMonster = monster;
+                Graphics.DrawFrame(bgRect, 1, Color.White);
+            }
+
+            return true;
         }
 
         private void DrawProgressBar(RectangleF mainRect, Color barColor, float perc, MonsterDisplayCfg monsterCfg)
@@ -390,9 +482,11 @@ namespace BestiaryBeastCraft
             Graphics.DrawFrame(frameRect, borderSize, drawBorderColor);
         }
 
-        private Color GetColorByRarity(MonsterRarity rarity)
+        private Color GetColorByRarity(MonsterDisplayCfg monsterCfg)
         {
-            switch(rarity)
+            if (monsterCfg.IsRed)
+                return Color.Red;
+            switch(monsterCfg.Rarity)
             {
                 case MonsterRarity.Unique:
                     return Settings.UniqueHpColor.Value;
@@ -435,5 +529,30 @@ namespace BestiaryBeastCraft
 
             return num.ToString("#,0");
         }
+    }
+
+    public class MonsterDisplayCfg
+    {
+        public EntityWrapper Entity;
+        public Life LifeComp;
+        public List<BestiaryRecipe> Recipes = new List<BestiaryRecipe>();
+        public BestiaryCapturableMonster CaptMonster;
+        public int ModsCount;
+        public List<string> Mods = new List<string>();
+        public float CaptureThreshould;
+        public string DisplayName;
+        public string DisplayMods;
+        public int CapturedGenusAmount;
+        public MonsterRarity Rarity;
+        public bool IsCaptured;
+        public int Level = -1;
+        public string Price = "";
+
+        public bool IsShittyMob;
+
+        public string URL;
+
+        public bool IsRed => ModsCount > 1;
+        public bool IsYellow => ModsCount == 1;
     }
 }

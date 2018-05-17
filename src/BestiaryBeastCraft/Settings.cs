@@ -111,6 +111,18 @@ namespace BestiaryBeastCraft
         public ToggleNode HideCapturedImmediately { get; set; } = true;
 
         [Menu("Show In Managerie")]
-        public ToggleNode ShowInManagerie { get; set; } = true;
+        public ToggleNode ShowInManagerie { get; set; } = false;
+
+        [Menu("Show Only Names In Managerie", 500)]
+        public ToggleNode ShowNamesInManagerie { get; set; } = true;
+
+        [Menu("Managerie Text Size", 501, 500)]
+        public RangeNode<int> ManagerieTextSize { get; set; } = new RangeNode<int>(20, 1, 100);
+
+
+        [Menu("Show Price (BETA)", 600)]
+        public ToggleNode ShowPrice { get; set; } = false;
+        [Menu("Clear Price Cache", 601, 600)]
+        public ButtonNode ClearPriceCache { get; set; } = new ButtonNode();
     }
 }
