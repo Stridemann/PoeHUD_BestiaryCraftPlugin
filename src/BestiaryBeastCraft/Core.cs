@@ -151,7 +151,7 @@ namespace BestiaryBeastCraft
             if (translatedMonster == null) return;
 
             var stats = entityWrapper.GetComponent<Stats>();
-            bool captured = stats.StatDictionary.ContainsKey(GameStat.IsHiddenMonster) && stats.StatDictionary[GameStat.IsHiddenMonster] == 1;
+            bool captured = stats.GameStatDictionary.ContainsKey(GameStat.IsHiddenMonster) && stats.GameStatDictionary[GameStat.IsHiddenMonster] == 1;
             if (captured && Settings.HideCapturedImmediately.Value) return;
 
 
@@ -297,8 +297,8 @@ namespace BestiaryBeastCraft
 
 
                 var stats = monster.Entity.GetComponent<Stats>();
-                bool captured = stats.StatDictionary.ContainsKey(GameStat.IsHiddenMonster) && stats.StatDictionary[GameStat.IsHiddenMonster] == 1;
-                bool netUsed = !IsManagerie && stats.StatDictionary.ContainsKey(GameStat.CannotDie) && stats.StatDictionary[GameStat.CannotDie] == 1;
+                bool captured = stats.GameStatDictionary.ContainsKey(GameStat.IsHiddenMonster) && stats.GameStatDictionary[GameStat.IsHiddenMonster] == 1;
+                bool netUsed = !IsManagerie && stats.GameStatDictionary.ContainsKey(GameStat.CannotDie) && stats.GameStatDictionary[GameStat.CannotDie] == 1;
 
                 if(!monster.IsCaptured && captured)
                 {
